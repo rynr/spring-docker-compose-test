@@ -1,0 +1,59 @@
+version: "3"
+services:
+  web:
+    image: node:lts-alpine
+    expose:
+      - 4200
+    networks:
+      - overlay
+    volumes:
+      - ./web:/app
+    command: >
+      sh -c "cd /app && yarn install && yarn run start --host 0.0.0.0"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`localhost`)"
+  api:
+    image: adoptopenjdk:14-jdk-openj9
+    expose:
+      - 8080
+    networks:
+      - overlay
+    volumes:
+      - ./api:/app
+      - maven-repo:/root/.m2
+      - maven-target:/app/api/target
+    command: >
+      sh -c "cd /app && ./mvnw spring-boot:run"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
+    depends_on:
+      - redis
+  redis:
+    image: redis:6
+    expose:
+      - 6379
+    networks:
+      - overlay
+    volumes:
+      - redis:/data
+  proxy:
+    image: traefik:2.2
+    command:
+      # - "--log.level=DEBUG"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - 80:80
+    networks:
+      - overlay
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+networks:
+  overlay:
+volumes:
+  redis:
+  maven-repo:
+  maven-target:
